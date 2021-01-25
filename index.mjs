@@ -26,10 +26,9 @@ mongodb.MongoClient.connect(
 	return connection.db('crm')
 }).then((db) => {
 
-	var bucket = new mongodb.GridFSBucket(db);
+	var bucket = new mongodb.GridFSBucket(db)
 
-
-	console.log('mongodb connected');
+	console.log('mongodb connected')
 
 	app.post('/', (req, res, next) => {
 
@@ -42,34 +41,32 @@ mongodb.MongoClient.connect(
 		*/
 
 		busboy.on('file', function(fieldname, file, filename, encoding, mimetype) {
-			console.log('File [' + fieldname + ']: filename: ' + filename + ', encoding: ' + encoding + ', mimetype: ' + mimetype);
 
-			//var saveTo = path.join('.', 'tmp', filename)
-			//var ostream = fs.createWriteStream(saveTo)
+			console.log(`file: "${filename}" id ${id} encoding: ${encoding}, mimetype: ${mimetype}`)
+
  			var ostream = bucket.openUploadStream(
 				filename,
 				{
 					contentType: mimetype,
 				}
 			);
+
 			var id = ostream.id;
 
 			ostream.on('data', function(data) {
-	        	console.log('File [' + fieldname + '] got ' + data.length + ' bytes');
+	        	console.log(`data: "${filename}" id ${id} got ${data.length} bytes`)
 	        })
 
 			ostream.once('finish', () => {
-				console.log('finish File [' + fieldname + '] Finished with id ' + id);
+				console.log(`finish: "${filename}" id ${id}`)
 			})
 
 			file.pipe(ostream)
 		})
 
 		busboy.once('finish', function() {
-			console.log('Upload complete');
-			res.writeHead(200, { 'Connection': 'close' });
-			res.end("That's all folks!");
-			//res.send('200 Ok')
+			console.log('Upload complete')
+			res.send('Ok')
 		});
 
 		return req.pipe(busboy)
