@@ -93,7 +93,7 @@ mongodb.MongoClient.connect(
 
 		stream.once('error', next)
 
-		req.pipe(busboy)
+		req.pipe(stream)
 
 	})
 
