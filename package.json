@@ -10,6 +10,7 @@
   "author": "serge r",
   "license": "WTFPL",
   "dependencies": {
+    "async": "^3.2.0",
     "busboy": "^0.3.1",
     "express": "^4.17.1",
     "gridfs-stream": "^1.1.1",

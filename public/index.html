@@ -6,23 +6,126 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<title>Home</title>
+		<title>Upload example</title>
 	</head>
 
 	<body>
 		<div id="app">
 
 			<form method="POST" enctype="multipart/form-data" action="/" >
-				<input type="text" name="textfield" value="some_value"><br>
-				<input type="file" name="upload" multiple><br>
-				<button type="submit">Ok</button>
+				<input
+					type="file"
+					name="upload"
+					multiple
+					onchange="updateQueue(this)"
+					>
 			</form>
 
+			<pre id="files_progress"></pre>
+			<pre id="files_list"></pre>
+
+			<button onclick="upload()">upload</button>
 		</div>
 
 	</body>
 
 
 	<script src="https://cdn.jsdelivr.net/npm/lodash@4/lodash.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/async@3.2.0/dist/async.min.js"></script>
 
+	<script type="text/javascript">
+
+		var queue = [];
+		var elList = document.getElementById('files_list')
+		var elProgress = document.getElementById('files_progress')
+
+		function updateList () {
+
+			var list = [];
+
+			for (let i = 0; i < queue.length; i ++) {
+
+				list.push({
+					name: queue[i].name,
+					size: queue[i].size,
+					type: queue[i].type
+				})
+			}
+
+			elList.innerText = JSON.stringify(list, false, 2)
+		}
+
+		function updateProgress (fname, event) {
+
+			var p = 0, s = '';
+
+			if (fname) {
+				p = parseInt(event.loaded / event.total * 100, 10);
+				s = `${fname}\n${p}%`;
+			}
+
+			elProgress.innerText = s;
+		}
+
+		function updateQueue(input) {
+
+			for (let i = 0; i < input.files.length; i ++) {
+				queue.push(input.files[i]);
+			}
+
+			input.value = null;
+
+			updateList();
+		}
+
+		function upload() {
+
+			var q = async.queue(function(file, callback) {
+				const xhr = new XMLHttpRequest();
+
+				queue.shift();
+				updateList();
+
+				xhr.open("POST", '/upload/' + file.name, true);
+
+				xhr.setRequestHeader('Last-Modified', file.lastModifiedDate)
+
+				xhr.upload.onerror = err => {
+					callback(err);
+				};
+
+				xhr.upload.onprogress = event => {
+					updateProgress(file.name, event);
+				};
+
+				xhr.upload.onload = event => {
+					updateProgress(file.name, event);
+				};
+
+				xhr.onreadystatechange = function() {
+					if(xhr.readyState == XMLHttpRequest.DONE && xhr.status == 200) {
+						console.log(xhr.response);
+						updateList();
+						updateProgress();
+						callback();
+					}
+				}
+
+				xhr.send(file);
+
+			}, 1);
+
+			q.error(function(err, task) {
+			    console.error(task, err);
+			});
+
+			q.drain(function () {
+				console.log('queue is empty');
+			})
+
+			q.push(queue);
+
+		}
+
+	</script>
 </html>
