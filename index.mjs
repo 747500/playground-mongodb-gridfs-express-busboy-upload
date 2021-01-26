@@ -54,8 +54,8 @@ mongodb.MongoClient.connect(
 			console.log(`file: "${filename}" id ${id} encoding: ${encoding}, mimetype: ${mimetype}`)
 
 			ostream.on('data', data => {
-	        	console.log(`data: "${filename}" id ${id} got ${data.length} bytes`)
-	        })
+				console.log(`data: "${filename}" id ${id} got ${data.length} bytes`)
+			})
 
 			ostream.once('finish', () => {
 				console.log(`finish: "${filename}" id ${id}`)
@@ -103,7 +103,7 @@ mongodb.MongoClient.connect(
 
 		db.collection('fs.files').findOne({ _id: oid }).then(fileinfo => {
 
-			if (null === fileinfo) { // 404 Not Found
+			if (null === fileinfo) { // 404
 				next()
 				return;
 			}
@@ -126,7 +126,8 @@ mongodb.MongoClient.connect(
 				'Content-Length': fileinfo.length,
 				'Content-Type': fileinfo.contentType,
 				'Last-Modified': lastModified.toISOString(),
-				'Content-Disposition': contentDisposition
+				'Content-Disposition': contentDisposition,
+				'ETag': 'W/' + oid.toString()
 			})
 
 			const stream = bucket.openDownloadStream(oid)

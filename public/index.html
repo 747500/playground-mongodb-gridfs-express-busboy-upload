@@ -79,11 +79,9 @@
 		}
 
 		function upload() {
-			var xhr = new XMLHttpRequest();
 
 			var q = async.queue(function(file, callback) {
-
-				console.log('send', file);
+				const xhr = new XMLHttpRequest();
 
 				queue.shift();
 				updateList();
