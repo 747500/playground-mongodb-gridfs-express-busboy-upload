@@ -2,6 +2,7 @@
 
 import path from 'path'
 import fs from 'fs'
+import querystring from 'querystring'
 
 import express from 'express'
 import morgan from 'morgan'
@@ -13,7 +14,6 @@ const app = express()
 const port = 4000
 app.use(morgan('dev'))
 app.use(express.json())
-
 
 const uri = "mongodb://127.0.0.1:27017?retryWrites=true&writeConcern=majority"
 
@@ -30,7 +30,7 @@ mongodb.MongoClient.connect(
 
 	console.log('mongodb connected')
 
-	app.post('/', (req, res, next) => {
+	app.post('/upload', (req, res, next) => {
 
 		var busboy = new Busboy({ headers: req.headers, immediate: true })
 
@@ -40,9 +40,7 @@ mongodb.MongoClient.connect(
 		})
 		*/
 
-		busboy.on('file', function(fieldname, file, filename, encoding, mimetype) {
-
-			console.log(`file: "${filename}" id ${id} encoding: ${encoding}, mimetype: ${mimetype}`)
+		busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
 
  			var ostream = bucket.openUploadStream(
 				filename,
@@ -51,9 +49,11 @@ mongodb.MongoClient.connect(
 				}
 			);
 
-			var id = ostream.id;
+			var id = ostream.id
 
-			ostream.on('data', function(data) {
+			console.log(`file: "${filename}" id ${id} encoding: ${encoding}, mimetype: ${mimetype}`)
+
+			ostream.on('data', data => {
 	        	console.log(`data: "${filename}" id ${id} got ${data.length} bytes`)
 	        })
 
@@ -64,12 +64,80 @@ mongodb.MongoClient.connect(
 			file.pipe(ostream)
 		})
 
-		busboy.once('finish', function() {
+		busboy.once('finish', () => {
 			console.log('Upload complete')
 			res.send('Ok')
 		});
 
-		return req.pipe(busboy)
+		req.pipe(busboy)
+	})
+
+	app.post('/upload/:filename', (req, res, next) => {
+
+		const filename = req.params.filename
+		const mimetype = req.headers['content-type']
+
+		var stream = bucket.openUploadStream(
+			filename,
+			{
+				contentType: mimetype,
+				metadata: {
+					lastModified: new Date(req.headers['last-modified'])
+				}
+			}
+		);
+
+		stream.once('finish', () => {
+			res.send({ file_id: stream.id })
+		})
+
+		stream.once('error', next)
+
+		req.pipe(busboy)
+
+	})
+
+	app.get('/f/:id', (req, res, next) => {
+
+		const oid = mongodb.ObjectId(req.params.id)
+
+		db.collection('fs.files').findOne({ _id: oid }).then(fileinfo => {
+
+			if (null === fileinfo) { // 404 Not Found
+				next()
+				return;
+			}
+
+			const hasLastModified =
+					'object' === typeof fileinfo.metadata &&
+					fileinfo.metadata.lastModified instanceof Date
+
+			const lastModified =
+					hasLastModified ?
+					fileinfo.metadata.lastModified :
+					fileinfo.uploadDate
+
+			const contentDisposition =
+					'inline;' + // or 'attachment' for downloads
+					'filename=' +
+					querystring.escape(fileinfo.filename)
+
+			res.set({
+				'Content-Length': fileinfo.length,
+				'Content-Type': fileinfo.contentType,
+				'Last-Modified': lastModified.toISOString(),
+				'Content-Disposition': contentDisposition
+			})
+
+			const stream = bucket.openDownloadStream(oid)
+
+			stream.once('error', next)
+
+			stream.pipe(res)
+
+		}).catch(err => {
+			next(err)
+		})
 	})
 
 	app.use(express.static('public'))
@@ -82,4 +150,4 @@ mongodb.MongoClient.connect(
 
 	console.error(err)
 
-});
+})
